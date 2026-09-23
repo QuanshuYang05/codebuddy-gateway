@@ -187,6 +187,9 @@ async function uploadAsset(releaseId) {
   }
   const size = fs.statSync(file).size;
   console.log(`[publish] 上传附件 ${name}（${(size / 1048576).toFixed(1)} MB）…`);
+  // 必须一次性给出 Buffer：Node fetch 用流式 body 会走 chunked，
+  // GitHub uploads 端点要求 Content-Length，否则报 400 Bad Content-Length
+  const buf = fs.readFileSync(file);
   const res = await fetch(
     `https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${releaseId}/assets?name=${encodeURIComponent(name)}`,
     {
@@ -195,10 +198,10 @@ async function uploadAsset(releaseId) {
         Authorization: `Bearer ${TOKEN}`,
         Accept: 'application/vnd.github+json',
         'Content-Type': 'application/octet-stream',
+        'Content-Length': String(buf.length),
         'X-GitHub-Api-Version': '2022-11-28',
       },
-      body: Readable.toWeb(fs.createReadStream(file)),
-      duplex: 'half',
+      body: buf,
     }
   );
   const text = await res.text();
