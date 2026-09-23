@@ -14,7 +14,8 @@
     "start": "node scripts/start.js",
     "smoke": "node scripts/smoke-test.js",
     "build": "node scripts/build.js",
-    "dist": "node scripts/build.js --win"
+    "dist": "node scripts/build.js --win",
+    "publish:github": "node scripts/publish.js"
   },
   "devDependencies": {
     "electron": "44.4.4",
