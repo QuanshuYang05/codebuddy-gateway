@@ -6,9 +6,9 @@
   "description": "WorkBuddy / CodeBuddy 中转网关桌面版：本地 OpenAI 兼容网关 + 实时中转状态控制台",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KAKAOY16/codebuddy-gateway.git"
+    "url": "git+https://github.com/QuanshuYang05/codebuddy-gateway.git"
   },
-  "homepage": "https://github.com/KAKAOY16/codebuddy-gateway",
+  "homepage": "https://github.com/QuanshuYang05/codebuddy-gateway",
   "main": "src/electron/main.js",
   "scripts": {
     "start": "node scripts/start.js",
