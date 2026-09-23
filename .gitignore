@@ -1,0 +1,31 @@
+# 依赖
+node_modules/
+
+# 构建产物（体积大，用 GitHub Release 分发，不进仓库）
+dist/
+build/
+release/
+release*/
+*.blockmap
+*.exe
+
+# 日志
+*.log
+converter.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# 编辑器与工具缓存
+.idea/
+.vscode/
+.workbuddy/
+.ref/
+
+# 系统
+.DS_Store
+Thumbs.db
+desktop.ini

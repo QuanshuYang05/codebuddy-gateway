@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+    <title>WorkBuddy 中转网关</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- 侧边栏 -->
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+          </div>
+          <div class="brand-text">
+            <div class="brand-title">WorkBuddy</div>
+            <div class="brand-sub">中转网关</div>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <button class="nav-item active" data-view="status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+            <span>实时状态</span>
+          </button>
+          <button class="nav-item" data-view="accounts">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>账号</span>
+          </button>
+          <button class="nav-item" data-view="admin">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <span>管理后台</span>
+          </button>
+          <button class="nav-item" data-view="settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>设置</span>
+          </button>
+          <button class="nav-item" data-view="logs">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>运行日志</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-foot">
+          <div class="endpoint" id="ep-block">
+            <span class="dot" id="dot"></span>
+            <code id="endpoint">127.0.0.1:8787</code>
+          </div>
+          <button class="icon-btn" id="copy-ep" title="复制接入地址">复制</button>
+        </div>
+      </aside>
+
+      <!-- 主内容区 -->
+      <main class="main">
+        <header class="topbar">
+          <div class="page-title" id="page-title">实时状态</div>
+          <div class="topbar-actions">
+            <button class="action ghost" id="btn-restart">重启网关</button>
+            <button class="action primary" id="btn-start">启动</button>
+            <button class="action" id="btn-stop">停止</button>
+          </div>
+        </header>
+
+        <div class="content" id="content">
+          <!-- 实时状态 -->
+          <section class="view active" id="view-status">
+            <div class="kpis">
+              <div class="kpi">
+                <span class="kpi-label">在途并发</span>
+                <span class="kpi-value" id="kpi-inflight">0</span>
+              </div>
+              <div class="kpi">
+                <span class="kpi-label">完成请求</span>
+                <span class="kpi-value" id="kpi-completed">0</span>
+              </div>
+              <div class="kpi">
+                <span class="kpi-label">成功率</span>
+                <span class="kpi-value" id="kpi-success">—</span>
+              </div>
+              <div class="kpi">
+                <span class="kpi-label">平均耗时</span>
+                <span class="kpi-value" id="kpi-latency">—</span>
+              </div>
+              <div class="kpi">
+                <span class="kpi-label">运行时间</span>
+                <span class="kpi-value" id="kpi-uptime">—</span>
+              </div>
+            </div>
+
+            <div class="grid-3">
+              <div class="panel chart-panel">
+                <div class="panel-head"><h3>吞吐与延迟</h3><span class="hint">柱：每 2 秒完成数　线：平均耗时</span></div>
+                <canvas id="chart" height="180"></canvas>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h3>结果与状态码</h3></div>
+                <div id="dist" class="dist"></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h3>每日签到 · 积分</h3></div>
+                <div class="checkin">
+                  <div class="checkin-kpis">
+                    <div class="kpi compact"><span class="kpi-label">今日已签到</span><span class="kpi-value" id="ci-today">—</span></div>
+                    <div class="kpi compact"><span class="kpi-label">剩余积分</span><span class="kpi-value" id="ci-credits">—</span></div>
+                    <div class="kpi compact"><span class="kpi-label">自动签到</span><span class="kpi-value" id="ci-auto-state">—</span></div>
+                  </div>
+                  <div class="checkin-actions">
+                    <button id="btn-checkin">立即签到</button>
+                    <label class="inline"><input id="ci-auto" type="checkbox" /> 自动</label>
+                    <input id="ci-time" type="time" step="60" />
+                    <button class="ghost" id="btn-ci-save">保存</button>
+                  </div>
+                  <p class="note" id="ci-note"></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="panel">
+                <div class="panel-head"><h3>账号池</h3></div>
+                <div id="accounts" class="accounts"></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h3>实时请求流</h3><span class="hint">最近 50 条</span></div>
+                <div class="table-wrap">
+                  <table class="log-table">
+                    <thead><tr><th>时间</th><th>接口</th><th>来源</th><th>状态</th><th>耗时</th><th>结果</th></tr></thead>
+                    <tbody id="req-rows"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 多账号管理 -->
+          <section class="view" id="view-accounts">
+            <div class="panel routing-card">
+              <div class="panel-head"><h3>积分消耗方式</h3><span class="hint">决定请求从哪个账号的积分里扣</span></div>
+              <div class="form">
+                <label class="radio">
+                  <input type="radio" name="routing" id="rt-round" value="round_robin" />
+                  <span class="radio-box">
+                    <span class="radio-title">轮询分摊</span>
+                    <span class="radio-desc">所有可用账号轮流消耗，单点额度耗尽自动跳过</span>
+                  </span>
+                </label>
+                <label class="radio">
+                  <input type="radio" name="routing" id="rt-manual" value="manual" />
+                  <span class="radio-box">
+                    <span class="radio-title">手动指定</span>
+                    <span class="radio-desc">只用下方标为「当前」的那一个账号</span>
+                  </span>
+                </label>
+                <p class="note" id="rt-note"></p>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><h3>添加账号</h3><span class="hint">最多 100 个；签到与积分仅支持国内账号</span></div>
+              <div class="form">
+                <label>
+                  <span>备注名（选填）</span>
+                  <input id="acct-name" type="text" placeholder="留空则自动取昵称" />
+                </label>
+                <div class="row">
+                  <button id="btn-oauth">浏览器登录新账号</button>
+                  <button class="ghost" id="btn-import">导入登录文件…</button>
+                  <button class="ghost" id="btn-checkin-all2">全部签到</button>
+                </div>
+                <p class="note" id="acct-note"></p>
+                <div id="oauth-box" class="oauth" hidden>
+                  <div class="oauth-line">
+                    <span class="pill warn" id="oauth-state">等待登录</span>
+                    <button class="ghost" id="btn-oauth-cancel">取消</button>
+                  </div>
+                  <p class="note">已在默认浏览器打开授权页，登录后本窗口会自动完成绑定。</p>
+                  <code class="keybox" id="oauth-url">—</code>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><h3>账号列表</h3><span class="hint" id="acct-summary"></span></div>
+              <div id="acct-list" class="accounts"></div>
+            </div>
+          </section>
+
+          <!-- 管理后台 -->
+          <section class="view" id="view-admin">
+            <webview id="adminview" src="about:blank"></webview>
+          </section>
+
+          <!-- 设置 -->
+          <section class="view" id="view-settings">
+            <div class="grid-2">
+              <div class="panel">
+                <div class="panel-head"><h3>网关设置</h3></div>
+                <div class="form">
+                  <label>
+                    <span>项目目录（workbuddy2api）</span>
+                    <div class="row">
+                      <input id="cfg-project" type="text" placeholder="选择 workbuddy2api 根目录" />
+                      <button class="ghost" id="btn-pick">浏览</button>
+                    </div>
+                  </label>
+                  <label>
+                    <span>监听端口</span>
+                    <input id="cfg-port" type="number" min="1024" max="65535" />
+                  </label>
+                  <label>
+                    <span>客户端 API Key</span>
+                    <div class="row">
+                      <input id="cfg-clientkey" type="text" placeholder="客户端调用 /v1/* 时需要携带" />
+                      <button class="ghost" id="btn-new-key">生成新密钥</button>
+                      <button class="ghost" id="btn-copy-key">复制</button>
+                    </div>
+                  </label>
+                  <p class="note">
+                    内核只在数据目录首次初始化时才采纳这里填写的密钥；之后以内核为准。
+                    若接入返回 401，点「生成新密钥」重新取一枚可用的。
+                  </p>
+                  <label class="check">
+                    <input id="cfg-autostart" type="checkbox" />
+                    <span>开机自动启动</span>
+                  </label>
+                  <div class="row">
+                    <button id="btn-save">保存并重启网关</button>
+                    <button class="ghost" id="btn-open-data">打开数据目录</button>
+                  </div>
+                  <p class="note" id="save-note"></p>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h3>管理密钥</h3></div>
+                <p class="note">桌面版自动生成并保管管理密钥，用于免登录打开管理后台。一般无需改动。</p>
+                <code class="keybox" id="admin-key">—</code>
+              </div>
+            </div>
+          </section>
+
+          <!-- 运行日志 -->
+          <section class="view" id="view-logs">
+            <div class="panel">
+              <div class="panel-head"><h3>网关进程输出</h3><button class="ghost" id="btn-refresh-logs">刷新</button></div>
+              <pre class="console" id="console"></pre>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

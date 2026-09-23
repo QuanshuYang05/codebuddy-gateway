@@ -1,0 +1,63 @@
+{
+  "name": "codebuddy-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WorkBuddy / CodeBuddy 中转网关桌面版：本地 OpenAI 兼容网关 + 实时中转状态控制台",
+  "main": "src/electron/main.js",
+  "scripts": {
+    "start": "node scripts/start.js",
+    "smoke": "node scripts/smoke-test.js",
+    "build": "node scripts/build.js",
+    "dist": "node scripts/build.js --win"
+  },
+  "devDependencies": {
+    "electron": "44.4.4",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.workbuddy.gateway",
+    "productName": "WorkBuddy 中转网关",
+    "copyright": "Copyright © 2026",
+    "icon": "resources/icon.ico",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources"
+      },
+      {
+        "from": "src/launcher.py",
+        "to": "launcher.py"
+      },
+      {
+        "from": "build/kernel",
+        "to": "kernel"
+      }
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "win": {
+      "target": "nsis",
+      "artifactName": "codebuddy-gateway-${version}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "WorkBuddy 中转网关",
+      "language": "2052",
+      "installerLanguages": [
+        "zh_CN"
+      ],
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

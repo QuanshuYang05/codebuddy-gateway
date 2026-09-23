@@ -1,0 +1,7 @@
+# 统一换行符，避免跨平台 diff 噪音
+* text=auto
+
+# 二进制资源不做换行转换
+*.ico binary
+*.png binary
+*.exe binary
