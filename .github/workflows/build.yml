@@ -92,3 +92,38 @@ jobs:
             release/*.rpm
             release/*.snap
           if-no-files-found: ignore
+
+  # 打 tag（v*）时，把三平台产物挂到对应的 Release 上。
+  # 用仓库内置的 GITHUB_TOKEN，不需要额外配置任何 secret。
+  release:
+    name: Attach artifacts to Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: codebuddy-gateway-*
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh artifacts
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: true
+          files: |
+            artifacts/*.exe
+            artifacts/*.dmg
+            artifacts/*.zip
+            artifacts/*.AppImage
+            artifacts/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

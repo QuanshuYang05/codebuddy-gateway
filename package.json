@@ -1,6 +1,6 @@
 {
   "name": "codebuddy-gateway",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "author": "kakaoy",
   "description": "WorkBuddy / CodeBuddy 中转网关桌面版：本地 OpenAI 兼容网关 + 实时中转状态控制台",
