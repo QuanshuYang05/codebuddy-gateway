@@ -126,6 +126,9 @@ function main() {
   build({
     targets: Platform[platform].createTarget(),
     config: { directories: { output: outDir } },
+    // electron-builder 检测到 CI 环境就会隐式发布，缺 GH_TOKEN 会直接报失败
+    // （产物其实已经打好了）。发布统一走 scripts/publish.js，这里明确关掉。
+    publish: 'never',
   })
     .then((artifacts) => {
       for (const a of artifacts) console.log(`[build] 产物：${a.file || a}`);
