@@ -1,0 +1,26 @@
+{
+  "_note": "workbuddy2api gateway. Requires the gateway running on 127.0.0.1:8787 (run start-gateway.bat).",
+  "_endpoints": {
+    "anthropic_messages": "http://127.0.0.1:8787/v1/messages",
+    "openai_chat": "http://127.0.0.1:8787/v1/chat/completions",
+    "openai_responses": "http://127.0.0.1:8787/v1/responses",
+    "models": "http://127.0.0.1:8787/v1/models",
+    "health": "http://127.0.0.1:8787/health"
+  },
+  "_warning": "model must be a real Tencent backend model id. No claude-* to Tencent auto-mapping.",
+  "DeepSeek-V4-Pro": {
+    "base_url": "http://127.0.0.1:8787/v1/messages",
+    "api_key": "",
+    "model": "deepseek-v4-pro"
+  },
+  "GLM-5.2": {
+    "base_url": "http://127.0.0.1:8787/v1/messages",
+    "api_key": "",
+    "model": "glm-5.2"
+  },
+  "Kimi-K2.7": {
+    "base_url": "http://127.0.0.1:8787/v1/messages",
+    "api_key": "",
+    "model": "kimi-k2.7"
+  }
+}

@@ -1,0 +1,94 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+            node: 22
+            python: '3.12'
+          - os: macos-latest
+            target: mac
+            node: 22
+            python: '3.12'
+          - os: ubuntu-latest
+            target: linux
+            node: 22
+            python: '3.12'
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Python dependencies into bundled venv
+        shell: bash
+        run: |
+          python -m venv build/kernel/.venv
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            build/kernel/.venv/Scripts/python.exe -m pip install -r build/kernel/requirements.txt
+          else
+            build/kernel/.venv/bin/python -m pip install -r build/kernel/requirements.txt
+          fi
+
+      - name: Generate macOS/Linux icons
+        if: matrix.target != 'win'
+        run: node scripts/make-icons.js
+
+      - name: Build ${{ matrix.target }} package
+        shell: bash
+        env:
+          # GitHub 默认从国外下载 electron-builder 二进制，国内镜像可作为兜底
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+          # 宿主可能给 Node fs.rm 挂保护，构建时关掉
+          CODEBUDDY_SAFE_DELETE_ENABLED: '0'
+        run: |
+          if [ "${{ matrix.target }}" = "win" ]; then
+            npm run build
+          else
+            node scripts/build.js --${{ matrix.target }}
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: codebuddy-gateway-${{ matrix.target }}-${{ github.run_id }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+            release/*.snap
+          if-no-files-found: ignore

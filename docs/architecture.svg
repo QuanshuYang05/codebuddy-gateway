@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" width="900" height="500" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <rect width="900" height="500" fill="#f8fafc"/>
+
+  <!-- 云端 -->
+  <rect x="330" y="46" width="240" height="60" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="450" y="72" text-anchor="middle" font-size="15" font-weight="600" fill="#334155">WorkBuddy / CodeBuddy 云端</text>
+  <text x="450" y="92" text-anchor="middle" font-size="12" fill="#64748b">copilot.tencent.com</text>
+
+  <!-- 上行转发箭头 -->
+  <line x1="450" y1="106" x2="450" y2="164" stroke="#7c3aed" stroke-width="2"/>
+  <polygon points="450,170 444,158 456,158" fill="#7c3aed"/>
+  <text x="462" y="140" font-size="11.5" fill="#7c3aed">上行转发（带会话 Cookie）</text>
+
+  <!-- 桌面壳 -->
+  <rect x="40" y="170" width="190" height="200" rx="12" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="135" y="196" text-anchor="middle" font-size="14" font-weight="600" fill="#1d4ed8">Electron 桌面壳</text>
+  <text x="135" y="214" text-anchor="middle" font-size="11" fill="#64748b">本仓库（二次开发部分）</text>
+  <text x="58" y="240" font-size="12" fill="#0f172a">· 主进程托管内核子进程</text>
+  <text x="58" y="264" font-size="12" fill="#0f172a">· 托盘常驻 / 开机自启</text>
+  <text x="58" y="288" font-size="12" fill="#0f172a">· 自动登录注入 Cookie</text>
+  <text x="58" y="312" font-size="12" fill="#0f172a">· 实时状态面板</text>
+  <text x="58" y="336" font-size="12" fill="#0f172a">· 日志收集 / 优雅退出</text>
+
+  <!-- 内核 -->
+  <rect x="270" y="170" width="360" height="200" rx="12" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="450" y="196" text-anchor="middle" font-size="14" font-weight="600" fill="#6d28d9">内核 workbuddy2api（Python）</text>
+  <text x="450" y="214" text-anchor="middle" font-size="11" fill="#64748b">协议转换全部由内核完成，本仓库未改动</text>
+
+  <rect x="290" y="226" width="320" height="34" rx="7" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1"/>
+  <text x="450" y="248" text-anchor="middle" font-size="12" fill="#4c1d95">launcher.py — 只绑 127.0.0.1 / 数据落用户目录</text>
+
+  <rect x="290" y="268" width="320" height="34" rx="7" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1"/>
+  <text x="450" y="290" text-anchor="middle" font-size="12" fill="#4c1d95">admin.server — 账号池 · 每日签到 · 密钥管理</text>
+
+  <rect x="290" y="310" width="320" height="34" rx="7" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1"/>
+  <text x="450" y="332" text-anchor="middle" font-size="12" fill="#4c1d95">core.converter — OpenAI ⇄ WorkBuddy 协议转换</text>
+
+  <!-- 客户端 -->
+  <rect x="670" y="170" width="190" height="200" rx="12" fill="#ffffff" stroke="#059669" stroke-width="1.5"/>
+  <text x="765" y="196" text-anchor="middle" font-size="14" font-weight="600" fill="#047857">本地 OpenAI 客户端</text>
+  <text x="765" y="214" text-anchor="middle" font-size="11" fill="#64748b">任意兼容 OpenAI 的工具</text>
+  <text x="688" y="240" font-size="12" fill="#0f172a">· Cursor / Cline</text>
+  <text x="688" y="264" font-size="12" fill="#0f172a">· Cherry Studio</text>
+  <text x="688" y="288" font-size="12" fill="#0f172a">· NextChat / LobeChat</text>
+  <text x="688" y="312" font-size="12" fill="#0f172a">· 任意 OpenAI SDK</text>
+
+  <!-- 壳 → 内核 -->
+  <line x1="230" y1="232" x2="264" y2="232" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="270,232 258,226 258,238" fill="#2563eb"/>
+  <text x="232" y="224" text-anchor="middle" font-size="10.5" fill="#2563eb">spawn 内核</text>
+
+  <!-- 内核 → 壳 -->
+  <line x1="264" y1="300" x2="230" y2="300" stroke="#2563eb" stroke-width="2"/>
+  <polygon points="224,300 236,294 236,306" fill="#2563eb"/>
+  <text x="232" y="318" text-anchor="middle" font-size="10.5" fill="#2563eb">状态轮询</text>
+
+  <!-- 客户端 → 内核 -->
+  <line x1="666" y1="232" x2="636" y2="232" stroke="#059669" stroke-width="2"/>
+  <polygon points="630,232 642,226 642,238" fill="#059669"/>
+  <text x="664" y="224" text-anchor="middle" font-size="10.5" fill="#059669">/v1/chat/completions</text>
+
+  <!-- 内核 → 客户端 -->
+  <line x1="636" y1="300" x2="666" y2="300" stroke="#059669" stroke-width="2"/>
+  <polygon points="672,300 660,294 660,306" fill="#059669"/>
+  <text x="664" y="318" text-anchor="middle" font-size="10.5" fill="#059669">SSE / JSON 响应</text>
+
+  <!-- 底部说明 -->
+  <rect x="40" y="400" width="820" height="56" rx="10" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+  <text x="450" y="424" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">全部流量只走本机回环 127.0.0.1:8787</text>
+  <text x="450" y="444" text-anchor="middle" font-size="12" fill="#475569">内核不对外暴露端口，桌面壳与客户端都在同一台机器上通信</text>
+</svg>

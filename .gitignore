@@ -3,11 +3,16 @@ node_modules/
 
 # 构建产物（体积大，用 GitHub Release 分发，不进仓库）
 dist/
-build/
 release/
 release*/
 *.blockmap
 *.exe
+
+# 内核源码必须进仓库（507K，否则克隆下来无法构建）。
+# 注意：这里要用 build/* 而不是 build/ —— 目录被整体排除时无法再单独放行子目录。
+# .venv/ 与 __pycache__/ 由下面的规则继续排除（Windows 的 .venv 有 16MB）。
+build/*
+!build/kernel/
 
 # 日志
 *.log

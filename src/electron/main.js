@@ -770,6 +770,24 @@ if (!gotLock) {
       // startMinimized 时窗口保持隐藏，托盘在运行
       if (!config.startMinimized) { win.show(); win.focus(); }
     }
+
+    // 仅供文档截图：GW_CAPTURE=<png 路径> 时截图后自行退出。
+    // 不设该变量时这段代码完全不执行，不影响正常运行。
+    if (process.env.GW_CAPTURE && win && !win.isDestroyed()) {
+      win.show();
+      setTimeout(async () => {
+        try {
+          const img = await win.webContents.capturePage();
+          fs.writeFileSync(process.env.GW_CAPTURE, img.toPNG());
+        } catch (err) {
+          pushLog(`[capture] 截图失败：${err.message || err}`);
+        } finally {
+          quitting = true;
+          stopGateway();
+          app.quit();
+        }
+      }, Number(process.env.GW_CAPTURE_DELAY || 6000));
+    }
   });
 
   app.on('before-quit', () => {

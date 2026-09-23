@@ -15,6 +15,9 @@
     "smoke": "node scripts/smoke-test.js",
     "build": "node scripts/build.js",
     "dist": "node scripts/build.js --win",
+    "build:mac": "node scripts/build.js --mac",
+    "build:linux": "node scripts/build.js --linux",
+    "make:icons": "node scripts/make-icons.js",
     "publish:github": "node scripts/publish.js"
   },
   "devDependencies": {
@@ -65,6 +68,30 @@
         "zh_CN"
       ],
       "deleteAppDataOnUninstall": false
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "resources/icon.icns",
+      "artifactName": "codebuddy-gateway-${version}-${arch}.${ext}",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development",
+      "icon": "resources/icon-256.png",
+      "artifactName": "codebuddy-gateway-${version}-${arch}.${ext}",
+      "maintainer": "kakaoy",
+      "synopsis": "WorkBuddy / CodeBuddy 中转网关桌面版",
+      "description": "本地 OpenAI 兼容网关与实时中转状态控制台"
     }
   }
 }

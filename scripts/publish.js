@@ -173,10 +173,20 @@ async function ensureRelease() {
 }
 
 // ---------- 5. 上传安装包 ----------
+function findInstaller() {
+  const candidates = [
+    path.join(ROOT, 'release', `${REPO}-${pkg.version}-Setup.exe`),
+    path.join(ROOT, 'release2', `${REPO}-${pkg.version}-Setup.exe`),
+    path.join(ROOT, 'release3', `${REPO}-${pkg.version}-Setup.exe`),
+    path.join(ROOT, 'release4', `${REPO}-${pkg.version}-Setup.exe`),
+  ];
+  return candidates.find((f) => fs.existsSync(f));
+}
+
 async function uploadAsset(releaseId) {
-  const file = path.join(ROOT, 'release', `${REPO}-${pkg.version}-Setup.exe`);
-  if (!fs.existsSync(file)) {
-    console.warn(`[publish] 找不到安装包 ${file}，跳过上传（先跑 npm run build）`);
+  const file = findInstaller();
+  if (!file) {
+    console.warn('[publish] 找不到安装包（在 release/release2/release3/release4 下查找），跳过上传（先跑 npm run build）');
     return;
   }
   const name = path.basename(file);

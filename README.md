@@ -31,6 +31,23 @@ HanHan666666/codebuddy2openai   （原始思路与实现）
 3. 托盘常驻，实时显示中转状态（轮询内核 `/admin/api/overview`）
 4. 开机自启、日志收集、优雅退出
 
+## 界面与架构
+
+### 主界面
+
+![主界面截图](docs/screenshot.png)
+
+左侧是导航，中间是实时状态（在途并发、完成请求、成功率、平均耗时、运行时间、吞吐与延迟、账号池、每日签到、实时请求流）。
+
+### 架构图
+
+![架构图](docs/architecture.svg)
+
+- **Electron 桌面壳**（本仓库）：进程托管、自动登录、托盘、实时状态面板、打包分发
+- **内核 `workbuddy2api`**（第三方）：协议转换、账号池、OAuth 登录、积分签到、管理后台
+- **本地 OpenAI 客户端**：Cursor / Cherry Studio / Cline / Codex 等，全部走 `http://127.0.0.1:8787/v1`
+- **WorkBuddy 云端**：上行转发，桌面壳负责把会话 Cookie 注入内核
+
 内核接口保持不变：
 
 | 接口 | 用途 |
