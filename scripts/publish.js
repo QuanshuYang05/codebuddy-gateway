@@ -16,6 +16,10 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { Readable } = require('node:stream');
 
+// Node 22 默认 DNS 结果顺序是 verbatim，会先试 IPv6；本机 IPv6 不通时
+// fetch 直接 Connect Timeout（而 curl 正常）。强制 IPv4 优先。
+require('node:dns').setDefaultResultOrder('ipv4first');
+
 const ROOT = path.resolve(__dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
