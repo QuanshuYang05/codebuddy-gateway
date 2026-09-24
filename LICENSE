@@ -19,11 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-本许可证仅覆盖本仓库自带的桌面外壳代码（src/、scripts/、resources/、docs/ 等）。
-
-随安装包分发的内核 workbuddy2api（build/kernel/）是第三方项目，使用其自身的
-MIT License（Copyright (c) 2026 HanHan666666、Copyright (c) 2026 Chris），
-以 build/kernel/LICENSE 为准，本仓库不对其主张任何权利。
