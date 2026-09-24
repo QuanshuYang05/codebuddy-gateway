@@ -265,9 +265,9 @@ npm run smoke
 
 ## 许可与署名
 
-本仓库**只包含桌面外壳**，桌面外壳代码尚未指定开源许可证。
+本仓库自带的**桌面外壳代码**（`src/`、`scripts/`、`resources/`、`docs/`）采用 **MIT License**（见根目录 `LICENSE`）。
 
-随安装包分发的内核 `workbuddy2api` 使用 **MIT License**（Copyright © 2026 HanHan666666、Copyright © 2026 Chris），
+随安装包分发的内核 `workbuddy2api` 使用其自身的 **MIT License**（Copyright © 2026 HanHan666666、Copyright © 2026 Chris），
 其思路演进自 [HanHan666666/codebuddy2openai](https://github.com/HanHan666666/codebuddy2openai)。
 内核自身的许可条款以该内核目录下的 `LICENSE` 为准，本仓库不对其主张任何权利。
 
