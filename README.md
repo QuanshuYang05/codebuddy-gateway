@@ -9,13 +9,13 @@
 
 👉 **[从 Releases 下载](https://github.com/QuanshuYang05/codebuddy-gateway/releases/latest)**
 
-当前版本 **v0.1.1**，GitHub Actions 在每次打 `v*` tag 时自动构建三平台产物并挂到对应 Release：
+当前版本 **v0.1.2**，GitHub Actions 在每次打 `v*` tag 时自动构建三平台产物并挂到对应 Release：
 
 | 平台 | 文件 | 说明 |
 |---|---|---|
-| Windows | `codebuddy-gateway-0.1.1-Setup.exe` | NSIS 用户级安装，约 116 MB |
-| macOS（Apple Silicon） | `codebuddy-gateway-0.1.1-arm64.dmg` / `-arm64.zip` | 仅 arm64；**未做开发者签名**，首次打开需在「访达」里右键 → 打开 |
-| Linux | `codebuddy-gateway-0.1.1-x86_64.AppImage` / `-amd64.deb` | AppImage 需先 `chmod +x` |
+| Windows | `codebuddy-gateway-0.1.2-Setup.exe` | NSIS 用户级安装，约 116 MB |
+| macOS（Apple Silicon） | `codebuddy-gateway-0.1.2-arm64.dmg` / `-arm64.zip` | 仅 arm64；**未做开发者签名**，首次打开需在「访达」里右键 → 打开 |
+| Linux | `codebuddy-gateway-0.1.2-x86_64.AppImage` / `-amd64.deb` | AppImage 需先 `chmod +x` |
 
 ## 项目来源与分工
 
