@@ -71,5 +71,24 @@ class MetricsTests(unittest.IsolatedAsyncioTestCase):
         await MetricsMiddleware(app,metrics)({'type':'http','method':'POST','path':'/v1/messages'},receive,send)
         s=metrics.snapshot();self.assertEqual(s['failed'],1);self.assertEqual(s['recent'][0]['outcome'],'interrupted')
 
+    async def test_finish_reason_then_disconnect_is_success(self):
+        # 客户端在收到 choices[].finish_reason 后直接断开（不再等待 [DONE]），
+        # 这是正常的工具调用/流式客户端行为，不应被误判为「中断」。
+        metrics = RequestMetrics()
+        async def app(scope, receive, send):
+            await send({'type': 'http.response.start', 'status': 200, 'headers': [(b'content-type', b'text/event-stream')]})
+            await send({'type': 'http.response.body', 'body': b'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"tool_calls"}]}\n\n', 'more_body': True})
+            # 客户端在 finish_reason 之后断开，后续 [DONE] 无法送达；流式响应就此结束。
+            msg = await receive()
+            assert msg['type'] == 'http.disconnect'
+        async def receive():
+            return {'type': 'http.disconnect'}
+        async def send(m):
+            pass
+        await MetricsMiddleware(app, metrics)({'type': 'http', 'method': 'POST', 'path': '/v1/chat/completions'}, receive, send)
+        s = metrics.snapshot()
+        self.assertEqual(s['success_rate'], 100)
+        self.assertEqual(s['recent'][0]['outcome'], 'success')
+
 
 if __name__=='__main__':unittest.main()

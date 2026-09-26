@@ -79,11 +79,19 @@ class MetricsMiddleware:
             response = value.get("response")
             if isinstance(response, dict) and (response.get("error") or response.get("status") in ("failed", "incomplete")):
                 failed = True
+            # OpenAI chat completion 流：choices[].finish_reason 非空即代表生成已结束。
+            # 不少客户端（Cherry Studio / HexHub 等）在收到 finish_reason 后直接关闭连接、
+            # 不再等待 [DONE]，因此这里也把它视为流已正常结束，避免误判为「中断」。
+            for choice in value.get("choices") or []:
+                if isinstance(choice, dict) and choice.get("finish_reason"):
+                    terminal = True
 
         async def observed_receive():
             nonlocal disconnected
             message = await receive()
-            if message["type"] == "http.disconnect" and not completed:
+            # 流已经到达结束标记（terminal）之后客户端断开，是正常行为
+            # （例如收到 finish_reason 就断开去执行工具），不应算作中断。
+            if message["type"] == "http.disconnect" and not completed and not terminal:
                 disconnected = True
             return message
 
@@ -119,10 +127,18 @@ class MetricsMiddleware:
         try:
             await self.app(scope, observed_receive, observed_send)
         except BaseException:
-            failed = True
+            # 流式已到达结束标记之后，客户端断开导致写回抛异常是正常收尾，不算失败。
+            if not (streaming and terminal):
+                failed = True
             raise
         finally:
             http_ok = status is not None and 200 <= status < 300
-            ok = http_ok and completed and not disconnected and not failed and (not streaming or terminal)
-            outcome = "success" if ok else "stream_error" if failed and streaming else "interrupted" if not completed or disconnected or (streaming and not terminal) else "http_error"
+            if streaming:
+                # 流式：语义结束以结束标记为准，而非「是否发完最后一个 body / 客户端是否断开」。
+                # 客户端在结束标记之后断开（例如收到 finish_reason 就执行工具）是正常的。
+                ok = http_ok and not failed and terminal
+                outcome = "success" if ok else "stream_error" if failed else "interrupted"
+            else:
+                ok = http_ok and completed and not disconnected and not failed
+                outcome = "success" if ok else "interrupted" if not completed or disconnected else "http_error"
             self.metrics.finish(path, self.source, status, ok, (time.monotonic()-start)*1000, outcome)
