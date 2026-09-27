@@ -175,6 +175,32 @@ async function main() {
   const m2 = ov2.status === 200 && ov2.json ? ov2.json.metrics : null;
   check('指标随请求递增', Boolean(m2) && m2.completed >= 1, m2 ? `完成 ${m2.completed} 笔` : '');
 
+  // 7. 用量账本：刚转发过一次，token 应当已经落账
+  const usage = await request('GET', '/admin/api/usage?period=day', { cookie });
+  const u = usage.status === 200 && usage.json ? usage.json : null;
+  check(
+    '用量接口 /admin/api/usage',
+    usage.status === 200 && Boolean(u) && Array.isArray(u.buckets),
+    u ? `${u.buckets.length} 个日桶 · 合计 ${u.totals.total_tokens} tokens` : `HTTP ${usage.status}`,
+  );
+  if (u) {
+    check(
+      '用量记到 token',
+      u.totals.total_tokens > 0 || u.totals.unmetered > 0,
+      `tokens=${u.totals.total_tokens} 未取到用量=${u.totals.unmetered}`,
+    );
+    const buckets = u.buckets.map((b) => b.key).join(',');
+    check('日桶按北京时间连续补齐', u.buckets.length === 30, buckets.slice(0, 24) + '…');
+    const monthly = await request('GET', '/admin/api/usage?period=month', { cookie });
+    const yearly = await request('GET', '/admin/api/usage?period=year', { cookie });
+    check(
+      '月/年周期可用',
+      monthly.status === 200 && yearly.status === 200 && monthly.json.buckets.length === 12 && yearly.json.buckets.length === 5,
+      `月 ${monthly.json ? monthly.json.buckets.length : '?'} 桶 / 年 ${yearly.json ? yearly.json.buckets.length : '?'} 桶`,
+    );
+    check('非法周期被拒', (await request('GET', '/admin/api/usage?period=week', { cookie })).status === 400);
+  }
+
   console.log('');
   if (failed === 0) {
     console.log('全部通过：内核链路可用，桌面版可以正常托管。');

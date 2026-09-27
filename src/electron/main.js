@@ -510,6 +510,32 @@ function statusPayload() {
 ipcMain.handle('gw:status', () => statusPayload());
 ipcMain.handle('gw:logs', () => logs.slice(-200));
 ipcMain.handle('gw:overview', () => getOverview());
+
+/**
+ * 用量统计（日/月/年）。
+ *
+ * 只读接口，不需要 CSRF。旧内核没有这个路由，这里把 404 翻译成可操作的提示，
+ * 否则界面上只会看到一片空白图表、看不出是内核版本问题。
+ */
+ipcMain.handle('gw:usage', async (_e, period) => {
+  const p = ['day', 'month', 'year'].includes(String(period)) ? String(period) : 'day';
+  if (!running) return { ok: false, error: '网关未运行，请先启动' };
+  try {
+    const r = await withReauth(() => request('GET', `/admin/api/usage?period=${encodeURIComponent(p)}`));
+    if (!r.ok) {
+      if (/HTTP 404/.test(String(r.error))) {
+        return {
+          ok: false,
+          error: '当前内核不支持用量统计（HTTP 404）。请在设置页把内核目录指向新版内核后重启网关。',
+        };
+      }
+      return r;
+    }
+    return r;
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) };
+  }
+});
 ipcMain.handle('gw:config', () => ({ ...config, adminKey: keys.adminKey }));
 ipcMain.handle('gw:start', () => ensureGateway());
 ipcMain.handle('gw:stop', () => { stopGateway(); refreshTray(); notifyStatus(); return { ok: true }; });

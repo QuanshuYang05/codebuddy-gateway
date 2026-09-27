@@ -21,6 +21,10 @@ let lastCompleted = null;
 let seenKeys = new Set();
 let events = [];
 let adminSrc = '';
+let usage = null;          // 最近一次取到的用量快照
+let usagePeriod = 'day';   // day | month | year
+let usageError = '';       // 取数失败时的可读原因
+let usageFetchedAt = 0;    // 节流用
 
 // ---------------------------------------------------------------------------
 // 数据刷新
@@ -91,6 +95,11 @@ function renderKpis(m, ov) {
   $('kpi-success').textContent = m.success_rate == null ? '—' : `${m.success_rate}%`;
   $('kpi-latency').textContent = m.avg_duration_ms == null ? '—' : `${m.avg_duration_ms} ms`;
   $('kpi-uptime').textContent = fmtDuration(ov.uptime);
+  const tok = $('kpi-tokens');
+  if (tok) {
+    tok.textContent = formatCompact(m.total_tokens);
+    tok.title = m.unmetered ? `本次运行累计；其中 ${m.unmetered} 笔未取到用量` : '本次运行内累计（重启清零）';
+  }
 
   const rate = m.success_rate;
   const el = $('kpi-success');
@@ -164,6 +173,244 @@ function renderChart() {
   ctx.fillText('0', 6, padT + plotH);
   ctx.fillStyle = '#2563eb';
   ctx.fillText(`${maxAvg} ms`, w - padR + 4, padT + 8);
+}
+
+// ---------------------------------------------------------------------------
+// 用量统计（日 / 月 / 年）
+// ---------------------------------------------------------------------------
+
+/** 1234 -> "1.2K"、1234567 -> "1.23M"，看板口径的紧凑数字 */
+function formatCompact(n) {
+  const v = Number(n) || 0;
+  if (Math.abs(v) < 1000) return String(Math.round(v * 100) / 100);
+  if (Math.abs(v) < 1e6) return `${(v / 1e3).toFixed(v < 1e4 ? 1 : 0)}K`;
+  if (Math.abs(v) < 1e9) return `${(v / 1e6).toFixed(2)}M`;
+  return `${(v / 1e9).toFixed(2)}B`;
+}
+
+const fmtInt = (n) => (Number(n) || 0).toLocaleString('zh-CN');
+const fmtCredit = (n) => {
+  const v = Number(n) || 0;
+  return v >= 100 ? String(Math.round(v)) : String(Math.round(v * 100) / 100);
+};
+
+/**
+ * 手写「柱 + 折线」图：柱子表示主指标，折线表示次指标（各自独立右侧刻度）。
+ * 沿用 renderChart 的视觉语言，不引任何图表库（CSP 只允许本文件）。
+ */
+function renderBarLine(canvas, { labels, bars, line, barColor, lineColor, emptyText, barFmt = formatCompact, lineFmt = formatCompact }) {
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || 800;
+  const h = Number(canvas.getAttribute('height')) || 200;
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const padL = 52, padR = 52, padT = 14, padB = 26;
+  const plotW = Math.max(10, w - padL - padR);
+  const plotH = Math.max(10, h - padT - padB);
+
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + (plotH * i) / 4;
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(w - padR, y);
+    ctx.stroke();
+  }
+
+  const hasData = Array.isArray(bars) && bars.some((v) => Number(v) > 0);
+  if (!hasData) {
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.fillText(emptyText || '暂无数据', padL + 8, padT + plotH / 2);
+    return;
+  }
+
+  const n = bars.length;
+  const slot = plotW / Math.max(n, 1);
+  const maxBar = Math.max(1, ...bars.map((v) => Number(v) || 0));
+  const maxLine = Math.max(1, ...(line || []).map((v) => Number(v) || 0));
+
+  bars.forEach((v, i) => {
+    const x = padL + i * slot;
+    const bh = ((Number(v) || 0) / maxBar) * plotH;
+    if (bh > 0) {
+      ctx.fillStyle = barColor;
+      ctx.fillRect(x + Math.min(1, slot * 0.12), padT + plotH - bh, Math.max(1.5, slot * 0.76), bh);
+    }
+  });
+
+  if (line && line.length) {
+    ctx.beginPath();
+    line.forEach((v, i) => {
+      const x = padL + i * slot + slot / 2;
+      const y = padT + plotH - ((Number(v) || 0) / maxLine) * plotH;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+  }
+
+  // 左右刻度
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(barFmt(maxBar), padL - 6, padT + 8);
+  ctx.fillText('0', padL - 6, padT + plotH);
+  ctx.textAlign = 'left';
+  if (line && line.length) ctx.fillText(lineFmt(maxLine), w - padR + 6, padT + 8);
+
+  // 横轴标签：桶多时抽稀，避免糊成一团
+  ctx.textAlign = 'center';
+  const step = Math.max(1, Math.ceil(n / 12));
+  labels.forEach((label, i) => {
+    if (i % step !== 0 && i !== n - 1) return;
+    ctx.fillText(String(label), padL + i * slot + slot / 2, h - 8);
+  });
+  ctx.textAlign = 'left';
+}
+
+function renderUsage() {
+  const box = $('u-tokens');
+  if (!box) return;
+  const tabs = $('usage-tabs');
+  if (tabs) {
+    tabs.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.period === usagePeriod));
+  }
+
+  const note = $('usage-note');
+  const data = usage && usage.period === usagePeriod ? usage : null;
+  if (!data) {
+    const msg = usageError || (status.running ? '正在读取用量…' : '网关未运行，启动后可查看用量。');
+    for (const id of ['u-tokens', 'u-credits', 'u-requests', 'u-unmetered']) $(id).textContent = '—';
+    for (const id of ['u-tokens-sub', 'u-credits-sub', 'u-requests-sub']) $(id).textContent = '';
+    $('usage-rows').innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(msg)}</td></tr>`;
+    $('usage-breakdown').innerHTML = `<div class="empty">${escapeHtml(msg)}</div>`;
+    $('usage-range').textContent = '';
+    note.textContent = usageError ? usageError : '';
+    renderBarLine($('chart-usage-tokens'), { labels: [], bars: [], line: [], barColor: '#93c5fd', lineColor: '#2563eb', emptyText: msg });
+    renderBarLine($('chart-usage-credits'), { labels: [], bars: [], line: [], barColor: '#fcd34d', lineColor: '#f59e0b', emptyText: msg });
+    return;
+  }
+
+  const t = data.totals || {};
+  $('u-tokens').textContent = formatCompact(t.total_tokens);
+  $('u-credits').textContent = fmtCredit(t.credits_used);
+  $('u-requests').textContent = fmtInt((t.api_requests || 0) + (t.test_requests || 0));
+  $('u-unmetered').textContent = fmtInt(t.unmetered);
+  $('u-tokens-sub').textContent = `输入 ${formatCompact(t.prompt_tokens)} · 输出 ${formatCompact(t.completion_tokens)}`;
+  $('u-credits-sub').textContent = t.credits_granted ? `另有获得 ${fmtCredit(t.credits_granted)}` : '按余额采样折算';
+  $('u-requests-sub').textContent = `其中连通测试 ${fmtInt(t.test_requests)}`;
+
+  const buckets = data.buckets || [];
+  const labels = buckets.map((b) => b.label);
+  renderBarLine($('chart-usage-tokens'), {
+    labels,
+    bars: buckets.map((b) => b.total_tokens),
+    line: buckets.map((b) => b.api_requests + b.test_requests),
+    barColor: '#93c5fd',
+    lineColor: '#2563eb',
+    emptyText: '这段时间还没有请求。',
+  });
+
+  let running = 0;
+  const cumulative = buckets.map((b) => (running += Number(b.credits_used) || 0));
+  renderBarLine($('chart-usage-credits'), {
+    labels,
+    bars: buckets.map((b) => b.credits_used),
+    line: cumulative,
+    barColor: '#fcd34d',
+    lineColor: '#f59e0b',
+    barFmt: fmtCredit,
+    lineFmt: fmtCredit,
+    emptyText: '还没有采到积分消耗（余额查询后才会出现）。',
+  });
+
+  const nonEmpty = buckets.filter(
+    (b) => b.total_tokens || b.api_requests || b.test_requests || b.credits_used || b.credits_granted,
+  );
+  $('usage-range').textContent = `${data.timezone} 分桶 · 有数据 ${nonEmpty.length}/${buckets.length} 个周期`;
+  $('usage-rows').innerHTML = nonEmpty.length
+    ? nonEmpty
+        .slice()
+        .reverse()
+        .map(
+          (b) => `<tr>
+            <td>${escapeHtml(b.key)}</td>
+            <td>${fmtInt(b.api_requests + b.test_requests)}</td>
+            <td>${fmtInt(b.prompt_tokens)}</td>
+            <td>${fmtInt(b.completion_tokens)}</td>
+            <td>${fmtInt(b.total_tokens)}</td>
+            <td>${b.credits_used ? fmtCredit(b.credits_used) : '—'}</td>
+          </tr>`,
+        )
+        .join('')
+    : '<tr><td colspan="6" class="empty">这段时间还没有用量记录。</td></tr>';
+
+  const models = data.models || [];
+  const accounts = data.accounts || [];
+  const rows = [
+    ...models.slice(0, 5).map((m) => ({ label: m.model, value: m.total_tokens, sub: `${fmtInt(m.requests)} 次` })),
+    ...accounts.slice(0, 5).map((a) => ({ label: a.name || a.id, value: a.total_tokens, sub: `${fmtInt(a.requests)} 次` })),
+  ];
+  if (!rows.length) {
+    $('usage-breakdown').innerHTML = '<div class="empty">还没有归因数据。用量按「模型 / 账号」分别累计。</div>';
+  } else {
+    const max = Math.max(...rows.map((r) => r.value), 1);
+    $('usage-breakdown').innerHTML = rows
+      .map(
+        (r) => `<div class="dist-row">
+          <span class="dist-label" title="${escapeHtml(r.label)}">${escapeHtml(r.label)}</span>
+          <span class="dist-bar"><span style="width:${(r.value / max) * 100}%"></span></span>
+          <span class="dist-count">${formatCompact(r.value)}</span>
+        </div>`,
+      )
+      .join('');
+  }
+
+  const cov = data.coverage || {};
+  note.textContent =
+    `口径：token 来自响应流里的 usage，按北京时间分桶；积分消耗是「定期查询余额做差分」折算出来的` +
+    `${cov.credit_note ? `（${cov.credit_note}）` : ''}，签到赠包计入「获得」而不是负消耗。` +
+    `账本保留 ${cov.retention_days || 400} 天、跨重启保留；顶部状态页的 KPI 仍是本次运行内的累计。` +
+    `客户端提前断开时可能拿不到 usage，这类请求计入「未取到用量」。`;
+}
+
+/** 取用量。节流 30 秒，避免和 2 秒一次的状态轮询叠加。 */
+async function refreshUsage(force = false) {
+  if (!status.running) {
+    usageError = '网关未运行，启动后可查看用量。';
+    usage = null;
+    renderUsage();
+    return;
+  }
+  if (!force && Date.now() - usageFetchedAt < 30000 && usage && usage.period === usagePeriod) {
+    renderUsage();
+    return;
+  }
+  try {
+    const r = await window.gw.usage(usagePeriod);
+    if (r && r.ok) {
+      usage = r;
+      usageError = '';
+    } else {
+      usage = null;
+      usageError = (r && (r.error || r.detail)) || '读取用量失败';
+    }
+  } catch (err) {
+    usage = null;
+    usageError = `读取用量异常：${err.message}`;
+  }
+  usageFetchedAt = Date.now();
+  renderUsage();
 }
 
 function renderDist() {
@@ -442,6 +689,7 @@ function escapeHtml(s) {
 
 const pageNames = {
   status: '实时状态',
+  usage: '用量统计',
   accounts: '账号',
   admin: '管理后台',
   settings: '设置',
@@ -454,6 +702,7 @@ function switchView(name) {
   $('page-title').textContent = pageNames[name] || 'WorkBuddy 中转网关';
   if (name === 'logs') refreshLogs();
   if (name === 'settings') refreshConfig();
+  if (name === 'usage') refreshUsage(true);
 }
 
 async function refreshLogs() {
@@ -573,6 +822,13 @@ function bind() {
     await onAccountAction(btn.dataset.act, btn.dataset.id, btn);
   });
 
+  $('usage-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn || btn.dataset.period === usagePeriod) return;
+    usagePeriod = btn.dataset.period;
+    refreshUsage(true);
+  });
+
   $('btn-pick').addEventListener('click', async () => {
     const p = await window.gw.pickProject();
     if (p) $('cfg-project').value = p;
@@ -620,7 +876,10 @@ function bind() {
     refreshStatus();
   });
 
-  window.addEventListener('resize', renderChart);
+  window.addEventListener('resize', () => {
+    renderChart();
+    renderUsage();
+  });
 }
 
 (async function boot() {
@@ -630,5 +889,7 @@ function bind() {
   setInterval(async () => {
     await refreshStatus();
     await refreshOverview();
+    // 只有停在这一页时才刷新用量，且内部还有 30 秒节流。
+    if (document.querySelector('.nav-item.active')?.dataset.view === 'usage') await refreshUsage();
   }, 2000);
 })();

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('gw', {
   status: () => ipcRenderer.invoke('gw:status'),
   logs: () => ipcRenderer.invoke('gw:logs'),
   overview: () => ipcRenderer.invoke('gw:overview'),
+  usage: (period) => ipcRenderer.invoke('gw:usage', period),
   config: () => ipcRenderer.invoke('gw:config'),
   saveConfig: (next) => ipcRenderer.invoke('gw:config:save', next),
   start: () => ipcRenderer.invoke('gw:start'),
