@@ -198,6 +198,13 @@ async function main() {
       monthly.status === 200 && yearly.status === 200 && monthly.json.buckets.length === 12 && yearly.json.buckets.length === 5,
       `月 ${monthly.json ? monthly.json.buckets.length : '?'} 桶 / 年 ${yearly.json ? yearly.json.buckets.length : '?'} 桶`,
     );
+    // 查询串必须真的传到内核：早期 request() 只传 pathname，会把 ?period= 丢掉，
+    // 内核收不到就退回默认 day，表现为「切到月/年没反应」。
+    check(
+      '查询串未被丢弃（月 ≠ 日的桶数）',
+      monthly.json && monthly.json.period === 'month' && monthly.json.buckets.length !== u.buckets.length,
+      `day=${u.buckets.length} month=${monthly.json ? monthly.json.buckets.length : '?'}`,
+    );
     check('非法周期被拒', (await request('GET', '/admin/api/usage?period=week', { cookie })).status === 400);
   }
 

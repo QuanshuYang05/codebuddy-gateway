@@ -303,6 +303,9 @@ canvas { width: 100%; display: block; }
 /* 响应式 */
 @media (max-width: 1240px) {
   .kpis { grid-template-columns: repeat(3, 1fr); }
+  /* 用量页只有 4 张卡，跟着 .kpis 变 3 列会折成 3+1。这两条必须写在 .kpis 之后：
+     两者都是单类选择器，同权重时靠源码顺序决定胜负。 */
+  .usage-kpis { grid-template-columns: repeat(4, 1fr); }
 }
 
 @media (max-width: 1080px) {
@@ -313,6 +316,7 @@ canvas { width: 100%; display: block; }
 
 @media (max-width: 860px) {
   .kpis { grid-template-columns: repeat(2, 1fr); }
+  .usage-kpis { grid-template-columns: repeat(2, 1fr); }
   .acct-btns { margin-top: 6px; justify-content: flex-start; }
   .acct-side { align-items: flex-start; }
 }

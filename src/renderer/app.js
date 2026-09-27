@@ -198,15 +198,21 @@ const fmtCredit = (n) => {
  * 手写「柱 + 折线」图：柱子表示主指标，折线表示次指标（各自独立右侧刻度）。
  * 沿用 renderChart 的视觉语言，不引任何图表库（CSP 只允许本文件）。
  */
-function renderBarLine(canvas, { labels, bars, line, barColor, lineColor, emptyText, barFmt = formatCompact, lineFmt = formatCompact }) {
+function renderBarLine(canvas, { labels, bars, line, barColor, lineColor, emptyText, barFmt = formatCompact, lineFmt = formatCompact, height = 200 }) {
   if (!canvas) return;
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 800;
-  const h = Number(canvas.getAttribute('height')) || 200;
-  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
+  // 高度必须用固定数值，不能读 canvas.getAttribute('height')：
+  // canvas.height = h * dpr 会把该属性改写，下次再读就会拿到放大后的值，
+  // 每次重绘都再乘一次 dpr，图表会一路长高。
+  const h = height;
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
   }
+  // 显示高度固定为 h 个 CSS 像素。不写死的话，canvas.height 是设备像素，
+  // 在高 DPI 屏上会被当成 CSS 高度，图表比预期高一截。
+  canvas.style.height = `${h}px`;
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);

@@ -297,7 +297,9 @@ function request(method, urlPath, body) {
     if (method !== 'GET' && csrfToken) headers['X-CSRF-Token'] = csrfToken;
 
     const req = http.request(
-      { hostname: u.hostname, port: u.port, path: u.pathname, method, headers, timeout: 10000 },
+      // 必须带上 u.search：只传 pathname 会把 ?period=month 这类查询串丢掉，
+      // 内核收不到参数就退化成默认值（表现为「切到月/年没反应」）。
+      { hostname: u.hostname, port: u.port, path: u.pathname + u.search, method, headers, timeout: 10000 },
       (res) => {
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
