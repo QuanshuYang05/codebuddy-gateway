@@ -52,9 +52,12 @@ class BillingError(Exception):
 
 
 class AccountPool:
-    def __init__(self, store, clock=time.time, client_factory=None):
+    def __init__(self, store, clock=time.time, client_factory=None, ledger=None):
         self.store, self.clock = store, clock
         self.client_factory = client_factory or (lambda: httpx.Client(timeout=20, follow_redirects=False))
+        # 用量账本：积分余额每次成功查询都会采样一次，相邻两次差分即当日消耗。
+        # 默认 None，既有的独立测试与用法不需要账本也能跑。
+        self.ledger = ledger
         self.locks = {}
         self.cursor = 0
         self.jobs = asyncio.Lock()
@@ -233,6 +236,12 @@ class AccountPool:
                     data = self.credits(client, headers)
                     # A successful balance lookup is proof of current authentication.
                     self.update(aid, **data, credits_updated=int(self.clock()), auth_invalid=False, last_error=checkin_error)
+                    if self.ledger is not None:
+                        # 采样差分：只有能查到余额时才可能算出消耗。
+                        try:
+                            self.ledger.record_credit_sample(aid, data.get("remaining"))
+                        except Exception:
+                            pass  # 账本问题不该影响签到/刷新本身
                     if data["remaining"] > 0 and action == "checkin":
                         self.update(aid, cooldown_until=0)
                     return {"id": aid, "ok": True, "message": message, "remaining": data["remaining"]}
@@ -353,6 +362,13 @@ class PoolMiddleware:
                 self.pool.update(aid, cooldown_until=self.pool.clock()+300, last_error="凭据暂不可用，已冷却 5 分钟")
                 aid, manager = self.pool.select(affinity_key)
                 await asyncio.to_thread(manager.get_headers)
+            # 用量统计要按账号/模型归因。这两项写在 scope 上而不是 ContextVar 里：
+            # 本中间件位于 MetricsMiddleware 内层，且在 finally 中 reset 上下文，
+            # 外层中间件读 ContextVar 只会拿到 None。
+            scope["wb_account_id"] = aid
+            model = body.get("model") if isinstance(body, dict) else None
+            if isinstance(model, str) and model:
+                scope["wb_model"] = model
         except HTTPException as e:
             return await JSONResponse({"detail": e.detail}, e.status_code)(scope, receive, send)
         except Exception:

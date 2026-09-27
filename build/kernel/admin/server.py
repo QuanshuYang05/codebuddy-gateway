@@ -20,6 +20,7 @@ from core import converter
 from .browser_login import BrowserLogin
 from .pool import AccountPool, PoolMiddleware
 from .metrics import RequestMetrics, MetricsMiddleware
+from .usage import UsageLedger
 
 COOKIE = "workbuddy_admin"
 MAX_BODY = 1024 * 1024
@@ -236,8 +237,9 @@ def create_app(root=None, auth_dir=None, initial_key=None, admin_key=None, secur
     converter._check_auth = store.check_api
     converter.CONFIG.update({"desensitize": True, "no_compact": False, "log_path": None})
     browser_login = BrowserLogin(store.save_browser_account)
-    pool = AccountPool(store)
-    metrics = RequestMetrics()
+    ledger = UsageLedger(store.root)
+    pool = AccountPool(store, ledger=ledger)
+    metrics = RequestMetrics(ledger=ledger)
     @asynccontextmanager
     async def lifespan(app):
         async def reap():
@@ -251,6 +253,16 @@ def create_app(root=None, auth_dir=None, initial_key=None, admin_key=None, secur
                     await pool.tick()
                 except Exception:
                     pass  # Per-account errors are persisted without credential data.
+                finally:
+                    # 每轮把账本落盘一次（内部还有 30 秒节流），并顺手裁剪：
+                    # 过老的日期与已被删除账号的余额基线都不再需要。
+                    try:
+                        with store.lock:
+                            alive = set(store.data["accounts"])
+                        ledger.prune(keep_accounts=alive)
+                        ledger.flush()
+                    except Exception:
+                        pass
                 await asyncio.sleep(60)
         pool_task = asyncio.create_task(pool_worker())
         try:
@@ -267,11 +279,17 @@ def create_app(root=None, auth_dir=None, initial_key=None, admin_key=None, secur
                 await pool_task
             except asyncio.CancelledError:
                 pass
+            # 优雅退出时强制落盘，尽量不丢最后一次节流窗口里的用量。
+            try:
+                ledger.flush(force=True)
+            except Exception:
+                pass
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.store = store
     app.state.browser_login = browser_login
     app.state.pool = pool
     app.state.metrics = metrics
+    app.state.ledger = ledger
     app.add_middleware(AdminMiddleware)
     app.add_middleware(PoolMiddleware, pool=pool)
     app.add_middleware(MetricsMiddleware, metrics=metrics)
@@ -379,6 +397,20 @@ def create_app(root=None, auth_dir=None, initial_key=None, admin_key=None, secur
         with store.lock:
             keys = [{"id": kid, **{k: v for k, v in item.items() if k != "hash"}} for kid, item in store.data["keys"].items()]
             return {"accounts": pool.rows(store.account_rows()), "pool": dict(store.data["pool"]), "metrics": metrics.snapshot(), "keys": keys, "models": converter.get_available_models(), "uptime": int(time.time() - store.started), "events": list(store.events)}
+
+    @app.get("/admin/api/usage")
+    async def usage(req: Request, period: str = "day"):
+        """按日/月/年聚合的 token 与积分消耗。
+
+        只读、幂等；数据来自 usage.json（跨重启保留），与 overview 里
+        metrics 的进程内累计是两套口径。
+        """
+        store.require_admin(req)
+        if period not in ("day", "month", "year"):
+            raise HTTPException(400, "统计周期无效")
+        with store.lock:
+            names = {aid: item.get("name") or aid for aid, item in store.data["accounts"].items()}
+        return ledger.snapshot(period, account_names=names)
 
     @app.post("/admin/api/accounts/{aid}/actions/{action}")
     async def account_action(aid: str, action: str, req: Request):
