@@ -62,12 +62,15 @@ def anthropic_request_to_chat(body: dict) -> dict:
     if "max_tokens" in body:
         chat["max_tokens"] = body["max_tokens"]
 
-    # tools
+    # tools（服务端工具会被 _convert_anthropic_tools 过滤掉；全被过滤时不带上
+    # 空的 tools 字段，避免后端收到 tools=[] 时行为异常）
     tools = body.get("tools")
     if tools:
-        chat["tools"] = _convert_anthropic_tools(tools)
+        converted = _convert_anthropic_tools(tools)
+        if converted:
+            chat["tools"] = converted
 
-    if "tool_choice" in body:
+    if "tool_choice" in body and chat.get("tools"):
         tc = body["tool_choice"]
         if isinstance(tc, dict):
             chat["tool_choice"] = {"type": tc.get("type", "any"), "function": {"name": tc.get("name", "")}}
@@ -213,15 +216,48 @@ def _extract_blocks_text(blocks: list) -> str:
     return "".join(parts)
 
 
+#: Anthropic **服务端工具** 类型前缀。这类工具由 API 提供方执行，不经过客户端
+#: function calling：请求里只有 type/name/max_uses，没有 input_schema。
+#: 常见于 web_search_20250305（联网搜索）。
+SERVER_TOOL_PREFIXES = (
+    "web_search",
+    "computer_",
+    "bash_",
+    "text_editor_",
+    "code_execution",
+)
+
+
+def is_server_tool(tool: Any) -> bool:
+    """判断一个 tool 是否是 Anthropic 服务端工具（而非客户端 function tool）。
+
+    依据：没有 `input_schema`，且 `type` 命中服务端工具前缀。
+    `{"type": "custom"}` 与 OpenAI 风格 `{"type": "function", ...}` 都不算。
+    """
+    if not isinstance(tool, dict):
+        return False
+    if "input_schema" in tool or "function" in tool:
+        return False
+    ttype = str(tool.get("type", ""))
+    return any(ttype.startswith(p) for p in SERVER_TOOL_PREFIXES)
+
+
 def _convert_anthropic_tools(tools: list) -> list:
     """将 Anthropic 格式的 tools 转为 OpenAI Chat 格式。
 
     Anthropic:  {"name": "...", "description": "...", "input_schema": {...}}
     Chat:       {"type": "function", "function": {"name": "...", "description": "...", "parameters": {...}}}
+
+    服务端工具（如 web_search_20250305）被跳过：它们没有 input_schema，转发给
+    Chat 后端只会变成一个参数 schema 为空的假 function tool，诱使模型调用一个
+    永远不会被执行的工具。这类工具由网关自己实现（见 core/web_search.py）。
     """
     result = []
     for t in tools:
         if not isinstance(t, dict):
+            continue
+        # 服务端工具不转发给后端
+        if is_server_tool(t):
             continue
         # 已经是 Chat 格式
         if "function" in t:

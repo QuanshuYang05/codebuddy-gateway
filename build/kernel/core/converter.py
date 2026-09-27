@@ -59,6 +59,13 @@ from .responses_adapter import (
 )
 from .responses_projection import project_responses_chat_body
 from .system_identity import filter_system_identity
+from .web_search import (
+    extract_search_query,
+    find_web_search_tool,
+    run_web_search,
+    sse_events,
+    web_search_enabled,
+)
 
 # ---------------------------------------------------------------------------
 # 常量
@@ -1137,7 +1144,8 @@ async def create_message(
     转换为 Anthropic SSE 事件流返回。
     """
     _check_auth(authorization, x_api_key)
-    cred = _cred()
+    # 注意：_cred() 推迟到真正访问后端时才调用 —— 若本请求只是联网搜索，由网关
+    # 自己完成、不消耗 CodeBuddy 账号凭据（账号全冷却时搜索仍应可用）。
 
     try:
         payload = await request.json()
@@ -1161,6 +1169,46 @@ async def create_message(
                 }
             },
         )
+
+    # 联网搜索：Anthropic 的 web_search 是**服务端工具**，必须由 API 提供方执行。
+    # CodeBuddy 后端只说 OpenAI Chat 协议，没有这个概念，所以网关自己搜索并
+    # 合成包含 web_search_tool_result 的 Anthropic 响应（见 core/web_search.py）。
+    if web_search_enabled():
+        tool = find_web_search_tool(payload)
+        if tool is not None:
+            rid = os.urandom(4).hex()
+            query = extract_search_query(payload)
+            max_uses = tool.get("max_uses")
+            try:
+                limit = int(max_uses) if max_uses else None
+            except (TypeError, ValueError):
+                limit = None
+            _log(f"[{rid}] 🔍 WEB_SEARCH | query={_truncate(query, 120)} | limit={limit}")
+            try:
+                message = await run_web_search(payload, limit=limit)
+            except Exception as e:  # noqa: BLE001 - 搜索失败要可见，不能静默降级
+                _log(f"[{rid}] ✗ WEB_SEARCH FAILED | {type(e).__name__}: {e}")
+                raise HTTPException(
+                    status_code=502,
+                    detail={
+                        "error": {
+                            "message": f"web_search failed: {e}",
+                            "type": "api_error",
+                            "code": 502,
+                        }
+                    },
+                ) from None
+            n_sources = len(message["content"][0].get("content") or [])
+            _log(f"[{rid}] ✓ WEB_SEARCH | {n_sources} sources | query={_truncate(query, 80)}")
+            # Anthropic Messages API 的 stream 默认值是 false：客户端不传 stream
+            # 时必须回 JSON（DSH 搜索插件正是这样调用并直接 response.json()）。
+            if payload.get("stream", False):
+                return StreamingResponse(
+                    sse_events(message),
+                    media_type="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+                )
+            return JSONResponse(content=message)
 
     try:
         chat_body = anthropic_request_to_chat(payload)
@@ -1204,6 +1252,7 @@ async def create_message(
         f"[{rid}] ── ANTHROPIC → CHAT BODY ──\n{json.dumps(chat_body, ensure_ascii=False, indent=2)}"
     )
 
+    cred = _cred()
     headers = cred.get_headers()
     url = f"{BACKEND}/v2/chat/completions"
     t0 = time.time()
@@ -1217,8 +1266,8 @@ async def create_message(
         )
 
     # 否则，收集完整响应并返回 JSON
-    from fastapi.responses import JSONResponse
-
+    # （JSONResponse 已在模块顶部导入；此处不要再做函数内导入 —— 那会让整个
+    #  函数作用域把 JSONResponse 视为局部变量，导致前面的分支 UnboundLocalError）
     response_data = await _collect_anthropic_nonstream(
         url, headers, chat_body, model_name, t0, rid
     )

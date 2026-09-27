@@ -305,7 +305,11 @@ def create_app(root=None, auth_dir=None, initial_key=None, admin_key=None, secur
     async def asset(filename: str):
         if filename not in {"app.js", "style.css"}:
             raise HTTPException(404)
-        return FileResponse(ASSETS / filename)
+        # Windows 上 mimetypes 把 .js 推断为 text/plain；配合 AdminMiddleware 的
+        # X-Content-Type-Options: nosniff，Chromium 会拒绝执行脚本，导致管理后台
+        # 一直停留在「正在连接工作空间…」。这里显式给出正确的 MIME 类型。
+        media_type = "text/javascript" if filename == "app.js" else "text/css"
+        return FileResponse(ASSETS / filename, media_type=media_type)
 
     @app.post("/admin/api/login")
     async def login(req: Request):
