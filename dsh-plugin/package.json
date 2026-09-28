@@ -1,0 +1,41 @@
+{
+  "name": "@local/codebuddy-gateway-panel",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH 侧边栏里的 WorkBuddy / CodeBuddy 中转网关：自带运行时，装完即用",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/*.json",
+    "scripts/*.ps1",
+    "payload/**",
+    "README.md",
+    "PREREQUISITES.md"
+  ],
+  "icon": "./icon.svg",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
+  },
+  "meta": {
+    "title": "中转网关面板",
+    "description": "在侧边栏查看 CodeBuddy 中转网关的 KPI、账号池与用量。"
+  }
+}

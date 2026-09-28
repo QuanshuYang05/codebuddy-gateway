@@ -1,0 +1,16 @@
+# dsh-plugin 的构建产物
+#
+# payload/ 里是可重定位的 Python 运行时 + 内核源码，约 52MB / 1798 个文件。
+# 它是**产物**不是源码：用 scripts/build-payload.ps1 能从任何一份已安装的
+# 网关重新组装出来（脚本带自检）。
+#
+# 不进仓库的三个理由：
+#   1. 52MB 进 git 历史是永久的，以后升级 Python 版本会不断累积，且无法删除
+#   2. 它是可重建的，本就该按产物对待
+#   3. 里面是第三方代码（内核 MIT、Python PSF），进仓库要额外留意许可
+#
+# 克隆后生成：pwsh -File dsh-plugin/scripts/build-payload.ps1
+payload/
+
+# 计划任务定义的备份（含本机 SID 与绝对路径，与机器绑定，不适合提交）
+scripts/autostart-task-backup.xml

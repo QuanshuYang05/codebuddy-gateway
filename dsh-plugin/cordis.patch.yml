@@ -1,0 +1,5 @@
+# dsh bundle patch：把网关面板插件插进 profile 的层栈。
+# 一行 Host 半（负责同源取数），Client 半由 dsh.client 声明自动装配。
+- insert:
+    - id: codebuddy-gateway-panel
+      name: '@local/codebuddy-gateway-panel'
