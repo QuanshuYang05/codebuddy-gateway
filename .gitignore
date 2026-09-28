@@ -34,3 +34,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 提 PR 到 awesome-dsh-plugin 用的草稿
+.listing/

@@ -8,7 +8,7 @@
  * 不 import 任何 Harness Client 包（规范禁止），控件全部就地实现。
  */
 window.__ModuleLoader__.load({
-  id: '@local/codebuddy-gateway-panel',
+  id: '@quanshuyang05/codebuddy-gateway-panel',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
@@ -834,7 +834,7 @@ window.__ModuleLoader__.load({
         h('span', { className: 'gwp-chip-label' }, '中转网关'));
     }
 
-    const PKG = '@local/codebuddy-gateway-panel';
+    const PKG = '@quanshuyang05/codebuddy-gateway-panel';
 
     return {
       inject: ['sidebarRightTabs', 'slots'],

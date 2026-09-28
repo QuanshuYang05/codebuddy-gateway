@@ -1,0 +1,138 @@
+name: dsh-plugin
+
+# 发布 DSH 插件包（含自带运行时的 tgz）。
+#
+# 触发：打 dsh-v* 标签，或手动 workflow_dispatch。
+# 与 build.yml（Electron 安装包）分开，两者互不干扰。
+#
+# 为什么需要这个：
+#   插件的 payload/（约 52MB 的 Python 运行时 + 内核）不进 git
+#   （见 dsh-plugin/.gitignore）。源码仓库 clone 下来是装不上、也跑不起来的，
+#   所以必须提供一个预构建的 tarball。awesome-dsh-plugin 的收录要求原文：
+#   「如果你的仓库根本无法从源码安装，提供 tarball 是必需的。」
+#
+# payload 在 CI 上这样重建（全部来自仓库自带的脚本，无外部依赖）：
+#   Python 运行时 ← scripts/make-python-runtime.js（CI 的 setup-python 解释器，
+#                   按标准布局平铺成可重定位目录，带 sys.prefix 自检）
+#   内核源码     ← build/kernel/（随仓库走）
+#   launcher.py  ← src/launcher.py（随仓库走）
+
+on:
+  push:
+    tags: ['dsh-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      # make-python-runtime.js 需要 build/kernel/.venv 里的第三方依赖来合并。
+      # 仓库不含 .venv，所以这里按 requirements.txt 现场建一个。
+      - name: Prepare kernel venv
+        shell: pwsh
+        run: |
+          $kernel = 'build/kernel'
+          if (-not (Test-Path "$kernel/requirements.txt")) {
+            throw "缺少 $kernel/requirements.txt"
+          }
+          python -m venv "$kernel/.venv"
+          & "$kernel/.venv/Scripts/python.exe" -m pip install --disable-pip-version-check -q -r "$kernel/requirements.txt"
+          & "$kernel/.venv/Scripts/python.exe" -c "import fastapi, uvicorn, httpx; print('kernel deps OK')"
+
+      # 组装可重定位的 Python 到 build/python（脚本自带 sys.prefix 自检）
+      - name: Build portable Python runtime
+        run: node scripts/make-python-runtime.js
+
+      # 把 runtime + 内核 + launcher 摆成插件期望的 payload 布局
+      - name: Assemble plugin payload
+        shell: pwsh
+        run: |
+          $payload = 'dsh-plugin/payload'
+          Remove-Item -Recurse -Force $payload -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $payload | Out-Null
+
+          robocopy build/python "$payload/python" /E /NFL /NDL /NJH /NJS /NP /XD __pycache__ | Out-Null
+          if ($LASTEXITCODE -ge 8) { throw "复制 Python 运行时失败: $LASTEXITCODE" }
+
+          robocopy build/kernel "$payload/kernel" /E /PURGE /NFL /NDL /NJH /NJS /NP `
+            /XD __pycache__ tests .venv deploy | Out-Null
+          if ($LASTEXITCODE -ge 8) { throw "复制内核失败: $LASTEXITCODE" }
+          foreach ($junk in @('__pycache__','tests','.venv','deploy')) {
+            Remove-Item -Recurse -Force "$payload/kernel/$junk" -ErrorAction SilentlyContinue
+          }
+
+          Copy-Item src/launcher.py "$payload/launcher.py" -Force
+
+          # 许可文件：二次分发必须带上（内核 MIT、Python PSF）
+          Copy-Item build/kernel/LICENSE "$payload/LICENSE-kernel.txt" -Force
+          $pyLic = Get-ChildItem build/python -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^LICENSE' } | Select-Object -First 1
+          if ($pyLic) { Copy-Item $pyLic.FullName "$payload/LICENSE-python.txt" -Force }
+          Copy-Item dsh-plugin/THIRD-PARTY-NOTICES.md "$payload/THIRD-PARTY-NOTICES.md" -Force
+
+          $size = (Get-ChildItem $payload -Recurse -File | Measure-Object Length -Sum).Sum
+          Write-Host ("payload 体积: {0:N1} MB" -f ($size / 1MB))
+
+      # 真跑一次：证明这套 payload 在别处也能起来（这正是它存在的意义）
+      - name: Smoke test payload
+        shell: pwsh
+        run: |
+          $py = 'dsh-plugin/payload/python/python.exe'
+          $kn = 'dsh-plugin/payload/kernel'
+          $env:PYTHONHOME = ''
+          $env:PYTHONPATH = ''
+          $env:PYTHONIOENCODING = 'utf-8'
+          $prefix = & $py -c "import sys; print(sys.prefix)"
+          $expect = (Resolve-Path 'dsh-plugin/payload/python').Path
+          if ($prefix -ne $expect) { throw "sys.prefix 不等于 payload 路径，运行时不可重定位" }
+          & $py -c "import sys; sys.path.insert(0, r'$kn'); import admin.server, fastapi, uvicorn, httpx; print('kernel imports OK')"
+          if ($LASTEXITCODE -ne 0) { throw "内核导入失败" }
+
+      - name: Validate plugin manifest
+        shell: pwsh
+        run: |
+          $pkg = Get-Content dsh-plugin/package.json -Raw | ConvertFrom-Json
+          if (-not $pkg.dsh.bundle.patch) { throw "缺少 dsh.bundle.patch（这是最常被拒的原因）" }
+          if ($pkg.private -eq $true) { throw "private=true 会阻止发布" }
+          if (-not (Test-Path "dsh-plugin/$($pkg.dsh.bundle.patch)")) { throw "patch 文件不存在" }
+          $patch = (Select-String -Path dsh-plugin/cordis.patch.yml -Pattern "name:\s*'([^']+)'").Matches.Groups[1].Value
+          $loaderId = (Select-String -Path dsh-plugin/client.js -Pattern "id:\s*'([^']+)'" | Select-Object -First 1).Matches.Groups[1].Value
+          if ($pkg.name -ne $patch) { throw "package.json 与 cordis.patch.yml 的包名不一致" }
+          if ($pkg.name -ne $loaderId) { throw "package.json 与 client.js 的 loader id 不一致" }
+          Write-Host "manifest OK: $($pkg.name)@$($pkg.version)"
+
+      - name: Pack tgz
+        shell: pwsh
+        working-directory: dsh-plugin
+        run: |
+          npm pack
+          Get-ChildItem *.tgz | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-plugin-tgz
+          path: dsh-plugin/*.tgz
+          if-no-files-found: error
+
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/dsh-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: true
+          files: dsh-plugin/*.tgz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

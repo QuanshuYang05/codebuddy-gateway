@@ -2,4 +2,4 @@
 # 一行 Host 半（负责同源取数），Client 半由 dsh.client 声明自动装配。
 - insert:
     - id: codebuddy-gateway-panel
-      name: '@local/codebuddy-gateway-panel'
+      name: '@quanshuyang05/codebuddy-gateway-panel'

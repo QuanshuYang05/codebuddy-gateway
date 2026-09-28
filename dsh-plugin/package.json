@@ -1,9 +1,27 @@
 {
-  "name": "@local/codebuddy-gateway-panel",
+  "name": "@quanshuyang05/codebuddy-gateway-panel",
   "version": "0.2.0",
-  "private": true,
   "type": "module",
-  "description": "DSH 侧边栏里的 WorkBuddy / CodeBuddy 中转网关：自带运行时，装完即用",
+  "description": "WorkBuddy / CodeBuddy relay gateway in the DSH sidebar: bundled runtime, works right after install",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QuanshuYang05/codebuddy-gateway.git",
+    "directory": "dsh-plugin"
+  },
+  "homepage": "https://github.com/QuanshuYang05/codebuddy-gateway/tree/main/dsh-plugin",
+  "bugs": {
+    "url": "https://github.com/QuanshuYang05/codebuddy-gateway/issues"
+  },
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "codebuddy",
+    "workbuddy",
+    "gateway"
+  ],
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -19,7 +37,8 @@
     "scripts/*.ps1",
     "payload/**",
     "README.md",
-    "PREREQUISITES.md"
+    "PREREQUISITES.md",
+    "THIRD-PARTY-NOTICES.md"
   ],
   "icon": "./icon.svg",
   "dsh": {
@@ -35,7 +54,7 @@
     }
   },
   "meta": {
-    "title": "中转网关面板",
-    "description": "在侧边栏查看 CodeBuddy 中转网关的 KPI、账号池与用量。"
+    "title": "Gateway Panel",
+    "description": "View and control the CodeBuddy gateway from the sidebar."
   }
 }
