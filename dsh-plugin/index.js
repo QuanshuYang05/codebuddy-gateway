@@ -21,6 +21,15 @@ import { fileURLToPath } from 'node:url';
 /** 插件自己的目录（payload 就在这里），与 profile 的 cwd 无关 */
 const PLUGIN_DIR = path.dirname(fileURLToPath(import.meta.url));
 
+/** 本插件的版本号，用于判断数据目录里的运行时副本是否需要刷新 */
+const PLUGIN_VERSION = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(PLUGIN_DIR, 'package.json'), 'utf8')).version || '0';
+  } catch {
+    return '0';
+  }
+})();
+
 const ROUTE = '/codebuddy-gateway/status';
 const CONTROL_ROUTE = '/codebuddy-gateway/control';
 const ACTION_ROUTE = '/codebuddy-gateway/action';
@@ -327,11 +336,117 @@ function loadDesktopConfig() {
  * 这是"装完即用"的关键：用户机器上只有 WorkBuddy + 登录态，
  * 没有 Python、没有内核、没有网关。插件自己带齐这三样。
  *
- * 布局：
+ * 布局（随包分发时）：
  *   <插件目录>/payload/python/        ← 可重定位的 Python（python.exe 与 python3xx.dll 同级）
  *   <插件目录>/payload/kernel/        ← 内核源码
  *   <插件目录>/payload/launcher.py
+ *
+ * ⚠️ 但内核**不能直接从插件目录里跑**。原因（实测踩到）：
+ *   内核进程会锁住自己所在的目录（Windows 下 python.exe 运行时，
+ *   该目录无法删除）。而升级/卸载插件时 pnpm 必然要删掉旧插件目录，
+ *   于是报 `failed to remove existing directory ... os error 32`。
+ *   「升级插件」与「内核正在运行」天然互斥。
+ *
+ *   所以首次使用时把 payload **复制**到用户数据目录，内核从副本启动。
+ *   插件目录里不留任何运行中的进程，可以随时被 pnpm 替换。
+ *
+ * 代价：首次启动多一次复制（约几十秒），磁盘多占一份。
+ * 这是为了让升级可用，值得。
  */
+
+/** 运行时副本的位置（在用户数据目录，不在插件目录） */
+function runtimeStageDir() {
+  return path.join(dataRoot(), 'runtime');
+}
+
+/** 递归复制目录，跳过 __pycache__（会由 Python 自行重建） */
+function copyDir(src, dst) {
+  fs.mkdirSync(dst, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (entry.name === '__pycache__') continue;
+    const s = path.join(src, entry.name);
+    const d = path.join(dst, entry.name);
+    if (entry.isDirectory()) copyDir(s, d);
+    else if (entry.isFile()) fs.copyFileSync(s, d);
+  }
+}
+
+/**
+ * 把插件自带的 payload 复制到数据目录，返回可用的运行时。
+ *
+ * 幂等且能感知版本：
+ *  - 副本不存在 → 复制
+ *  - 副本存在但标记的版本与当前插件不同 → 重新复制（升级场景）
+ *  - 版本一致 → 直接用
+ *
+ * 复制用「先写到 .new 再改名」的方式，避免中途失败留下半个副本。
+ */
+function ensureStagedRuntime(bundled) {
+  const stage = runtimeStageDir();
+  const stampFile = path.join(stage, '.stamp.json');
+  const stamp = readJson(stampFile);
+
+  const python = [
+    path.join(stage, 'python', 'python.exe'),
+    path.join(stage, 'python', 'bin', 'python3'),
+  ].find((p) => fs.existsSync(p));
+  const launcher = path.join(stage, 'launcher.py');
+  const kernel = path.join(stage, 'kernel');
+
+  const complete =
+    python && fs.existsSync(launcher) && fs.existsSync(path.join(kernel, 'core', 'converter.py'));
+  const upToDate = complete && stamp && stamp.version === PLUGIN_VERSION;
+
+  if (upToDate) {
+    return { root: stage, python, launcher, kernel, found: true, bundled: true, staged: true };
+  }
+
+  // 需要（重新）复制。先写到临时目录，成功后再换名，避免半个副本。
+  const tmp = `${stage}.new`;
+  try {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.mkdirSync(tmp, { recursive: true });
+    copyDir(path.join(bundled.root, 'python'), path.join(tmp, 'python'));
+    copyDir(path.join(bundled.root, 'kernel'), path.join(tmp, 'kernel'));
+    fs.copyFileSync(path.join(bundled.root, 'launcher.py'), path.join(tmp, 'launcher.py'));
+    fs.writeFileSync(
+      path.join(tmp, '.stamp.json'),
+      JSON.stringify({ version: PLUGIN_VERSION, at: Date.now() }, null, 2),
+      'utf8',
+    );
+
+    // 换名。旧副本可能正被上一次的内核占用 —— 那就留着，下次再说。
+    try {
+      fs.rmSync(stage, { recursive: true, force: true });
+    } catch { /* 被占用：下面 rename 会失败，走 catch */ }
+    fs.renameSync(tmp, stage);
+  } catch (err) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    // 复制失败时退回直接用插件目录里的 payload（至少能跑），
+    // 代价是那次升级可能仍撞锁 —— 但比完全起不来好。
+    return {
+      ...bundled,
+      staged: false,
+      stageError: String(err.message || err),
+    };
+  }
+
+  const py2 = [
+    path.join(stage, 'python', 'python.exe'),
+    path.join(stage, 'python', 'bin', 'python3'),
+  ].find((p) => fs.existsSync(p));
+  return {
+    root: stage,
+    python: py2,
+    launcher: path.join(stage, 'launcher.py'),
+    kernel: path.join(stage, 'kernel'),
+    found: Boolean(py2),
+    bundled: true,
+    staged: true,
+    freshlyStaged: true,
+  };
+}
+
 function bundledRuntime() {
   const root = path.join(PLUGIN_DIR, 'payload');
   const python = [
@@ -347,14 +462,45 @@ function bundledRuntime() {
 }
 
 /**
+ * 优先用已复制到数据目录的副本；没有且插件自带 payload 时，先复制再用。
+ * 两者都没有则回退到外部安装。
+ */
+function resolveBundled() {
+  const stage = runtimeStageDir();
+  const stamp = readJson(path.join(stage, '.stamp.json'));
+  const python = [
+    path.join(stage, 'python', 'python.exe'),
+    path.join(stage, 'python', 'bin', 'python3'),
+  ].find((p) => fs.existsSync(p));
+  const stagedOk =
+    python &&
+    fs.existsSync(path.join(stage, 'launcher.py')) &&
+    fs.existsSync(path.join(stage, 'kernel', 'core', 'converter.py'));
+
+  if (stagedOk && stamp?.version === PLUGIN_VERSION) {
+    return { root: stage, python, launcher: path.join(stage, 'launcher.py'), kernel: path.join(stage, 'kernel'), found: true, bundled: true, staged: true };
+  }
+
+  const inPlace = bundledRuntime();
+  if (inPlace.found) return ensureStagedRuntime(inPlace);
+
+  // 插件目录没 payload（源码 clone），但数据目录有副本 → 直接用
+  if (stagedOk) {
+    return { root: stage, python, launcher: path.join(stage, 'launcher.py'), kernel: path.join(stage, 'kernel'), found: true, bundled: true, staged: true };
+  }
+  return { found: false };
+}
+
+/**
  * 找到可用的网关运行时。
  *
- * 顺序：**自带 payload → 用户显式指定 → 上次用过的 → 桌面版配置 → 常见安装位**。
- * 自带的那份放最前，因为它一定和当前插件版本匹配；用户已装的桌面版放后面兜底。
+ * 顺序：**数据目录里的副本 → 插件自带 payload（复制过去）→ 用户显式指定
+ *       → 上次用过的 → 桌面版配置 → 常见安装位**。
+ * 自带的那份放最前，因为它一定和当前插件版本匹配；外部安装放后面兜底。
  * 一个候选要同时具备 python、launcher.py 和 kernel 才算数。
  */
 function findRuntime() {
-  const bundled = bundledRuntime();
+  const bundled = resolveBundled();
   if (bundled.found) return bundled;
 
   const { desktop, dir } = loadDesktopConfig();
@@ -688,13 +834,26 @@ export function apply(ctx) {
 
     child.stdout.on('data', (b) => String(b).split('\n').forEach(pushLog));
     child.stderr.on('data', (b) => String(b).split('\n').forEach(pushLog));
-    child.on('exit', (code, sig) => {
+
+    // 这个 spawn 出来的进程自己持有引用：exit 回调只清理"它还当前"时的状态。
+    //
+    // 为什么不能直接写 child = null：存在竞态。stop() 之后立刻 start() 时，
+    // 旧进程的 exit 事件可能在新进程起来之后才到达（实测：日志里会看到一条
+    // 「[exit] ... signal=SIGTERM」落在新进程启动之后）。若旧回调无条件清空
+    // child，启动循环会误判"新内核已退出"，报出「内核启动后立即退出」，
+    // 而实际上新内核活得好好的。
+    const proc = child;
+    proc.stdout.on('data', (b) => String(b).split('\n').forEach(pushLog));
+    proc.stderr.on('data', (b) => String(b).split('\n').forEach(pushLog));
+    proc.on('exit', (code, sig) => {
       pushLog(`[exit] 内核退出 code=${code} signal=${sig}`);
-      child = null;
-      session = null;
-      cache = { at: 0, key: '', value: null };
+      if (child === proc) {
+        child = null;
+        session = null;
+        cache = { at: 0, key: '', value: null };
+      }
     });
-    child.on('error', (err) => pushLog(`[error] ${err.message}`));
+    proc.on('error', (err) => pushLog(`[error] ${err.message}`));
     childStartedAt = Date.now();
 
     // 等健康检查通过，最多 30s

@@ -37,3 +37,6 @@ desktop.ini
 
 # 提 PR 到 awesome-dsh-plugin 用的草稿
 .listing/
+
+# 临时验证脚本
+.verify/

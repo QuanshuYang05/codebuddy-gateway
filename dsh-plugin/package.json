@@ -1,6 +1,6 @@
 {
   "name": "@quanshuyang05/codebuddy-gateway-panel",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "WorkBuddy / CodeBuddy relay gateway in the DSH sidebar: bundled runtime, works right after install",
   "license": "MIT",
